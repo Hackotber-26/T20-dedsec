@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pehchaan/data/demo_test_data.dart';
 import 'package:pehchaan/language_service.dart';
 import 'package:pehchaan/service/hybrid_detection_service.dart';
@@ -25,13 +27,16 @@ class _HomeScreenState extends State<HomeScreen> {
   String _detectionSource = '';
   final TextEditingController _inputController = TextEditingController();
   final FlutterTts _tts = FlutterTts();
+  final MobileScannerController _qrImageDecoder = MobileScannerController();
+  final ImagePicker _imagePicker = ImagePicker();
+
+  bool _isPickingQr = false;
 
   final Random _random = Random();
   String? _lastRandomSampleTitle;
 
   DetectionMode _mode = DetectionMode.message;
   RiskResult? _result;
-  bool _showScanner = false;
   String _language = 'English';
 
   static const Color background = Color(0xFFF6F5F3);
@@ -45,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _hybridDetector.dispose();
     _inputController.dispose();
+    _qrImageDecoder.dispose();
     _tts.stop();
     super.dispose();
   }
@@ -106,23 +112,81 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _pickAndAnalyzeQr() async {
+    if (_isPickingQr || _isAnalyzing) return;
+
+    try {
+      setState(() {
+        _isPickingQr = true;
+      });
+
+      // Open the device's image gallery.
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (!mounted) return;
+      if (image == null) return;
+
+      // Extract QR data from the selected gallery image only.
+      final BarcodeCapture? capture = await _qrImageDecoder.analyzeImage(
+        image.path,
+        formats: const [BarcodeFormat.qrCode],
+      );
+
+      if (!mounted) return;
+
+      String? decodedValue;
+      if (capture != null) {
+        for (final barcode in capture.barcodes) {
+          final value = barcode.rawValue?.trim();
+          if (value != null && value.isNotEmpty) {
+            decodedValue = value;
+            break;
+          }
+        }
+      }
+
+      if (decodedValue == null) {
+        _showMessage('No readable QR code was found. Try a clearer image.');
+        return;
+      }
+
+      _handleQr(decodedValue);
+    } catch (error) {
+      if (mounted) {
+        _showMessage('Could not read this image. Please try another one.');
+      }
+      debugPrint('Pehchaan QR upload error: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingQr = false;
+        });
+      }
+    }
+  }
+
   void _handleQr(String value) {
-    if (value.trim().isEmpty) return;
+    final decodedValue = value.trim();
+    if (decodedValue.isEmpty) return;
 
-    _inputController.text = value;
-
-    final lower = value.toLowerCase();
+    final lower = decodedValue.toLowerCase();
 
     if (lower.startsWith('upi://')) {
       _mode = DetectionMode.upi;
-    } else if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    } else if (lower.startsWith('http://') ||
+        lower.startsWith('https://')) {
       _mode = DetectionMode.website;
     } else {
       _mode = DetectionMode.message;
     }
 
     setState(() {
-      _showScanner = false;
+      _inputController.text = decodedValue;
+      _result = null;
+      _detectionSource = '';
     });
 
     _analyzeInput();
@@ -176,7 +240,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _inputController.text = selectedSample.input.trim();
       _result = null;
-      _showScanner = false;
     });
 
     _showMessage('${selectedSample.title} loaded!');
@@ -186,7 +249,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _mode = mode;
       _result = null;
-      _showScanner = false;
       _inputController.clear();
     });
   }
@@ -311,11 +373,6 @@ class _HomeScreenState extends State<HomeScreen> {
           //   Icons.shield_outlined,
           //   'Scam detection',
           //   onTap: () => _selectMode(DetectionMode.message),
-          // ),
-          // _sidebarItem(
-          //   Icons.qr_code_scanner,
-          //   'QR scanner',
-          //   onTap: () => setState(() => _showScanner = true),
           // ),
           const Spacer(),
           Container(
@@ -564,23 +621,11 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 22),
           _buildModeSelector(),
           const SizedBox(height: 20),
-          if (_showScanner) ...[
-            _buildScanner(),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() => _showScanner = false);
-              },
-              icon: const Icon(Icons.keyboard),
-              label: const Text('Enter manually instead'),
-            ),
-          ] else ...[
-            _buildInputField(),
-            const SizedBox(height: 14),
-            _buildAnalyzeButton(),
-            const SizedBox(height: 20),
-            _buildSampleInputs(),
-          ],
+          _buildInputField(),
+          const SizedBox(height: 14),
+          _buildAnalyzeButton(),
+          const SizedBox(height: 20),
+          _buildSampleInputs(),
         ],
       ),
     );
@@ -704,11 +749,19 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {
-                setState(() => _showScanner = true);
-              },
-              icon: const Icon(Icons.qr_code_scanner, size: 18),
-              label: const Text('Upload QR Code'),
+              onPressed: (_isPickingQr || _isAnalyzing)
+                  ? null
+                  : _pickAndAnalyzeQr,
+              icon: _isPickingQr
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file, size: 18),
+              label: Text(
+                _isPickingQr ? 'Processing image...' : 'Upload QR Code',
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: ink,
                 side: const BorderSide(color: borderColor),
@@ -781,31 +834,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // QR SCANNER
-
-  Widget _buildScanner() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'SCAN A QR CODE',
-          style: TextStyle(
-            color: muted,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        const SizedBox(height: 10),
-        const Text(
-          'Position the QR code inside the camera view.',
-          style: TextStyle(color: muted, fontSize: 12),
-        ),
-      ],
-    );
-  }
+  // Upload-only QR image handling; no camera preview or live scanning is used.
 
   // RESULT PANEL
 
