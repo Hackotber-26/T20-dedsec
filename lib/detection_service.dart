@@ -144,7 +144,7 @@ class DetectionService {
   }
 
   RiskResult checkMessage(String input) {
-    final text = input.trim().toLowerCase();
+    final text = input.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
     if (text.isEmpty) {
       return _invalidResult('message');
@@ -153,112 +153,371 @@ class DetectionService {
     int score = 0;
     final List<String> reasons = [];
 
+    // Each category is scored at most once. This prevents repeated words
+    // from artificially inflating the risk score.
     void addRule(int points, String reason) {
       score += points;
       reasons.add(reason);
     }
 
-    final credentialRequest = RegExp(
-      r'(share|send|provide|tell|enter|submit|reveal|'
-      r'forward|give|verify|confirm).{0,50}'
-      r'(otp|one.?time password|pin|password|'
-      r'cvv|card number|security code)',
-    );
-
-    final credentialRequestReverse = RegExp(
-      r'(otp|one.?time password|pin|password|'
-      r'cvv|security code).{0,50}'
-      r'(share|send|provide|tell|reveal|forward)',
-    );
-
-    if (credentialRequest.hasMatch(text) ||
-        credentialRequestReverse.hasMatch(text)) {
-      addRule(
-        45,
-        'The message appears to request sensitive '
-        'credentials such as an OTP, PIN or password.',
+    bool matchesAny(List<String> patterns) {
+      return patterns.any(
+        (pattern) => RegExp(pattern, caseSensitive: false).hasMatch(text),
       );
     }
 
-    final urgencyPatterns = [
-      RegExp(r'account.{0,30}(block|suspend|deactivat)'),
-      RegExp(r'(immediately|urgent|right now|within \d+)'),
-      RegExp(r'last warning'),
-      RegExp(r'limited time'),
-      RegExp(r'will be.{0,20}(blocked|closed|suspended)'),
-      RegExp(r'account.{0,30}expir'),
-    ];
+    final hasUrl = RegExp(
+      r'(https?://|www\.)\S+',
+      caseSensitive: false,
+    ).hasMatch(text);
 
-    if (urgencyPatterns.any((p) => p.hasMatch(text))) {
+    final asksForSecret = matchesAny([
+      r'\b(share|send|provide|tell|enter|submit|reveal|forward|give|'
+          r' disclose|type|reply with|confirm|verify)\b.{0,65}'
+          r'\b(otp|one.?time password|verification code|pin|upi pin|'
+          r'password|passcode|cvv|cvc|card number|security code)\b',
+      r'\b(otp|one.?time password|verification code|upi pin|pin|'
+          r'password|passcode|cvv|cvc|card number|security code)\b'
+          r'.{0,65}\b(share|send|provide|tell|reveal|forward|give|'
+          r'disclose|reply with)\b',
+      r'\b(keep|have)\b.{0,25}\b(otp|pin|password|cvv)\b.{0,25}'
+          r'\b(ready|available)\b',
+    ]);
+
+    final credentialMention = matchesAny([
+      r'\b(otp|one.?time password|verification code|upi pin|'
+          r'cvv|cvc|internet banking password)\b',
+    ]);
+
+    if (asksForSecret) {
       addRule(
-        25,
-        'The message uses urgency or threatens account '
-        'suspension to pressure you.',
+        65,
+        'The message asks you to share or enter sensitive credentials '
+        'such as an OTP, UPI PIN, CVV or password. Never share these.',
+      );
+    } else if (credentialMention &&
+        matchesAny([
+          r'\b(do not|never|dont|dont|not)\b.{0,25}'
+              r'\b(share|tell|reveal|disclose)\b',
+          r'\b(if you did not|if this was not)\b',
+        ])) {
+      // Security advice and defensive warnings should not be treated as
+      // credential theft requests.
+    }
+
+    final upiCollectScam = matchesAny([
+      r'\b(approve|accept|authorise|authorize)\b.{0,55}'
+          r'\b(collect request|payment request|upi request)\b',
+      r'\b(collect request|payment request)\b.{0,55}'
+          r'\b(receive|get|claim)\b.{0,30}\b(refund|money|cashback)\b',
+      r'\b(to receive|get|claim)\b.{0,35}\b(refund|money|cashback)\b'
+          r'.{0,45}\b(approve|accept|enter pin|upi pin)\b',
+      r'\b(scan|open)\b.{0,30}\b(qr)\b.{0,45}'
+          r'\b(receive|get|claim)\b.{0,25}\b(money|refund)\b',
+    ]);
+
+    if (upiCollectScam) {
+      addRule(
+        60,
+        'The message may be disguising a UPI collect request as a refund '
+        'or incoming payment. Receiving money does not require entering '
+        'your UPI PIN.',
       );
     }
 
-    final rewardPatterns = [
-      RegExp(r'you have won'),
-      RegExp(r'you won'),
-      RegExp(r'congratulations.{0,40}(winner|prize|reward)'),
-      RegExp(r'claim.{0,30}(reward|prize|cash|gift)'),
-      RegExp(r'free.{0,20}(gift|money|iphone|prize)'),
-      RegExp(r'lucky winner'),
-    ];
+    final jobOffer = matchesAny([
+      r'\b(work from home|work.?from.?home|part.?time job|'
+          r'data entry|typing job|online job|job opportunity|'
+          r'internship|joining letter|shortlisted for)\b',
+    ]);
 
-    if (rewardPatterns.any((p) => p.hasMatch(text))) {
+    final jobFee = matchesAny([
+      r'\b(registration|onboarding|verification|processing|'
+          r'security|training|document)\s+(fee|charge|payment)\b',
+      r'\b(pay|payment|deposit|transfer)\b.{0,45}'
+          r'\b(job|internship|joining|interview|training|position)\b',
+      r'\b(refundable|refundable fee)\b.{0,35}\b(fee|deposit|charge)\b',
+      r'\b(fee|deposit|charge)\b.{0,35}\b(refundable)\b',
+    ]);
+
+    if (jobOffer && jobFee) {
+      addRule(
+        55,
+        'The job or internship offer asks for an upfront fee. '
+        'Legitimate employers generally do not require payment to secure a job.',
+      );
+    } else if (jobOffer &&
+        matchesAny([
+          r'\b(no experience|required|earn|per day|daily income|'
+              r'limited slots|easy money|guaranteed selection)\b',
+        ])) {
       addRule(
         20,
-        'The message advertises an unexpected prize '
-        'or reward.',
+        'The unsolicited job offer makes unusually easy or attractive '
+        'earning claims. Verify the employer and vacancy independently.',
       );
     }
 
-    final paymentPatterns = [
-      RegExp(r'(pay|transfer).{0,40}(now|immediately)'),
-      RegExp(r'avoid.{0,30}(penalty|suspension|fine)'),
-      RegExp(r'payment.{0,30}(pending|failed|urgent)'),
-      RegExp(r'send money'),
-      RegExp(r'pay.{0,20}to.{0,20}(receive|unlock|claim)'),
-    ];
+    final investmentOffer = matchesAny([
+      r'\b(guaranteed|assured|fixed)\b.{0,35}'
+          r'\b(returns|profit|income|double|triple)\b',
+      r'\b(double|triple|3x)\b.{0,25}\b(your money|investment|capital)\b',
+      r'\b(invest|investment|trading)\b.{0,65}'
+          r'\b(guaranteed|assured|risk.?free|daily profit|'
+          r'95% accuracy|sure shot)\b',
+      r'\b(95% accuracy|100% profit|risk.?free returns|'
+          r'money back guaranteed)\b',
+    ]);
 
-    if (paymentPatterns.any((p) => p.hasMatch(text))) {
+    if (investmentOffer) {
+      addRule(
+        50,
+        'The message promises unusually high, guaranteed or risk-free '
+        'investment returns. Such claims are a common investment-scam warning sign.',
+      );
+    }
+
+    final urgency = matchesAny([
+      r'\b(immediately|urgent|right now|within\s+\d+\s*(hours?|minutes?|days?)|'
+          r'last warning|final warning|act now|today only|expires tonight)\b',
+      r'\b(account|connection|service|card)\b.{0,35}'
+          r'\b(blocked|blocked today|suspended|deactivated|closed|disconnected)\b',
+      r'\b(will be|scheduled for)\b.{0,25}'
+          r'\b(blocked|suspended|closed|disconnected|terminated)\b',
+      r'\b(avoid|prevent)\b.{0,30}\b(disconnection|suspension|closure|block|penalty)\b',
+    ]);
+
+    final threatOrDeadline = matchesAny([
+      r'\b(permanent|legal action|police case|arrest|fine|penalty)\b',
+      r'\b(lose access|account access will|connection will)\b',
+    ]);
+
+    if (urgency &&
+        (threatOrDeadline ||
+            hasUrl ||
+            matchesAny([r'\b(pay|kyc|verify|update|call|contact|click)\b']))) {
+      addRule(
+        35,
+        'The message uses urgency, a threat or a short deadline to pressure '
+        'you into acting before verifying the request.',
+      );
+    }
+
+    final kycOrAccountAction = matchesAny([
+      r'\b(kyc|know your customer)\b',
+      r'\b(account|bank account|debit card|credit card)\b.{0,35}'
+          r'\b(expir|restrict|block|suspend|update|reactivat)\w*\b',
+      r'\b(update|complete|verify|reactivate)\b.{0,35}'
+          r'\b(kyc|bank account|card details|account)\b',
+    ]);
+
+    if (kycOrAccountAction &&
+        (hasUrl ||
+            asksForSecret ||
+            matchesAny([r'\b(call|pay|click|submit|update immediately)\b']))) {
+      addRule(
+        40,
+        'The message combines a banking or KYC-related request with a link, '
+        'payment or sensitive-information action. Use your bank’s official app '
+        'or independently verified contact details.',
+      );
+    }
+
+    final paymentPressure = matchesAny([
+      r'\b(pay|transfer|send)\b.{0,45}\b(now|immediately|today|urgent)\b',
+      r'\b(payment|amount|fee|charge)\b.{0,40}'
+          r'\b(pending|failed|overdue|clearance|verification)\b',
+      r'\b(pay|payment)\b.{0,35}\b(to receive|to unlock|to release|'
+          r'to claim|to avoid)\b',
+      r'\b(send money|make a payment|advance payment|pay in advance)\b',
+    ]);
+
+    final suspiciousPaymentPurpose = matchesAny([
+      r'\b(customs|clearance|parcel release|delivery release|'
+          r'account verification|refund processing|prize claim)\b',
+      r'\b(release|unlock|receive|claim)\b.{0,35}'
+          r'\b(parcel|shipment|loan|refund|reward|prize|scholarship)\b',
+    ]);
+
+    if (paymentPressure && suspiciousPaymentPurpose && !jobFee) {
+      addRule(
+        40,
+        'The message requests payment to release, verify or receive something. '
+        'Verify the charge through the organisation’s official channel.',
+      );
+    } else if (paymentPressure && !jobFee && !upiCollectScam) {
+      addRule(
+        18,
+        'The message asks for a payment or transfer. Confirm the recipient '
+        'and reason independently before paying.',
+      );
+    }
+
+    final impersonation = matchesAny([
+      r'\b(sbi|state bank of india|hdfc|icici|axis bank|'
+          r'kotak|canara bank|bank of baroda|pnb|rbi|npci|'
+          r'paytm|phonepe|google pay|gpay|amazon|paypal|'
+          r'bescom|electricity board|customs department|income tax)\b',
+      r'\b(customer care|customer support|support executive|'
+          r'bank officer|kyc department|verification team)\b',
+    ]);
+
+    final impersonationAction = matchesAny([
+      r'\b(click|open|visit|reply|call|contact|pay|verify|'
+          r'update|share|submit|send|approve)\b',
+    ]);
+
+    if (impersonation &&
+        impersonationAction &&
+        (hasUrl ||
+            urgency ||
+            asksForSecret ||
+            paymentPressure ||
+            kycOrAccountAction)) {
       addRule(
         25,
-        'The message pressures you to make an urgent '
-        'payment or transfer.',
+        'The sender appears to invoke a trusted organisation or support team '
+        'while asking you to take a sensitive action. Verify using its official '
+        'app or published contact details.',
       );
     }
 
-    final impersonationPatterns = [
-      RegExp(r'\b(bank|sbi|hdfc|icici|axis bank)\b'),
-      RegExp(r'\b(rbi|income tax|government department)\b'),
-      RegExp(r'\b(customer care|support team|kyc department)\b'),
-      RegExp(r'\b(upi department|bank officer)\b'),
-    ];
+    final deliveryScam =
+        matchesAny([
+          r'\b(parcel|shipment|package|customs|courier|delivery)\b',
+        ]) &&
+        matchesAny([
+          r'\b(address incomplete|confirm your address|address verification|'
+              r'customs fee|clearance charge|redelivery fee|held at customs|'
+              r'pay.*delivery|delivery.*payment)\b',
+        ]);
 
-    if (impersonationPatterns.any((p) => p.hasMatch(text))) {
+    if (deliveryScam &&
+        (hasUrl ||
+            paymentPressure ||
+            matchesAny([
+              r'\b(mobile number|personal details|pay|fee|charge)\b',
+            ]))) {
+      addRule(
+        35,
+        'The delivery message asks for extra payment or personal details '
+        'to release a parcel. Check tracking directly with the courier.',
+      );
+    }
+
+    final prizeScam = matchesAny([
+      r'\b(you have won|you won|lucky winner|selected as a winner|'
+          r'congratulations)\b',
+      r'\b(free gift|cashback reward|exclusive reward|prize money|'
+          r'lottery|giveaway|free iphone)\b',
+    ]);
+
+    if (prizeScam &&
+        (hasUrl ||
+            paymentPressure ||
+            asksForSecret ||
+            matchesAny([r'\b(claim|activate|redeem|fee|winner)\b']))) {
+      addRule(
+        35,
+        'The message offers an unexpected prize, gift or reward and asks '
+        'you to claim or activate it. Be wary of advance fees and credential requests.',
+      );
+    }
+
+    final socialAccountScam =
+        matchesAny([
+          r'\b(instagram|facebook|whatsapp|telegram|social media)\b',
+        ]) &&
+        matchesAny([
+          r'\b(appeal|verification|reported|impersonation|copyright|'
+              r'permanent restriction|account disabled|account suspended)\b',
+        ]);
+
+    if (socialAccountScam &&
+        (hasUrl ||
+            urgency ||
+            matchesAny([r'\b(login|password|verify|submit|appeal now)\b']))) {
+      addRule(
+        35,
+        'The message uses a social-media account warning or appeal to prompt '
+        'verification. Open the platform directly instead of following message links.',
+      );
+    }
+
+    final unsolicitedContact = matchesAny([
+      r'\b(dm me|message me|contact me|whatsapp me|telegram me)\b',
+    ]);
+
+    final bulkPromotion = matchesAny([
+      r'\b(limited slots|limited stock|first \d+ members|'
+          r'no experience required|earn rs\.?|earn ₹|'
+          r'work only \d+ hours|easy income|daily income)\b',
+    ]);
+
+    if (bulkPromotion && unsolicitedContact && !investmentOffer && !jobFee) {
       addRule(
         15,
-        'The message claims to represent a bank or '
-        'trusted organisation. Verify its authenticity.',
+        'The message resembles an unsolicited bulk promotion with an '
+        'unverified offer or call to action.',
       );
     }
 
-    final containsUrl = RegExp(r'(https?:|www\.)\S+').hasMatch(text);
+    final secrecyOrRemoteAccess = matchesAny([
+      r'\b(install anydesk|teamviewer|remote access|screen sharing)\b',
+      r'\b(don.t tell anyone|keep this confidential|secret transaction)\b',
+    ]);
 
-    if (containsUrl) {
+    if (secrecyOrRemoteAccess) {
       addRule(
-        20,
-        'The message contains a link. Check its destination '
-        'independently before opening it.',
+        40,
+        'The message requests secrecy or remote access, which can be used '
+        'to take control of a device or account.',
       );
+    }
+
+    if (hasUrl &&
+        (urgency ||
+            asksForSecret ||
+            kycOrAccountAction ||
+            prizeScam ||
+            socialAccountScam ||
+            deliveryScam)) {
+      addRule(
+        25,
+        'The message combines a link with a suspicious request. Do not open '
+        'it until you independently verify the destination.',
+      );
+    } else if (hasUrl) {
+      // A link alone is not proof of a scam.
+      reasons.add(
+        'The message contains a link. Check its destination before opening it.',
+      );
+    }
+
+    // Benign transactional and institutional language is deliberately not
+    // penalized by itself. It is only a weak contextual signal when no
+    // stronger suspicious behavior was found.
+    final benignNotification = matchesAny([
+      r'\b(payment successful|transaction successful|has been debited|'
+          r'has been credited|order has been shipped|expected delivery|'
+          r'examination|internal assessment|classroom|interview invitation|'
+          r'please confirm your availability|bill is now available|'
+          r'due date|registration details|fest is happening)\b',
+    ]);
+
+    if (score == 0 && benignNotification) {
+      reasons
+        ..clear()
+        ..add(
+          'The message resembles a routine notification or announcement. '
+          'This is not proof that the sender is genuine.',
+        );
     }
 
     if (reasons.isEmpty) {
       reasons.add(
-        'No strong scam indicators were detected '
-        'in this message.',
+        'No strong scam or spam indicators were detected. '
+        'This does not prove the sender or message is legitimate.',
       );
     }
 

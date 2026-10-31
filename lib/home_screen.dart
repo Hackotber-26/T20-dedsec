@@ -728,9 +728,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSampleInputs() {
-    final isMessage = _mode == DetectionMode.message;
-    final isWebsite = _mode == DetectionMode.website;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

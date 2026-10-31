@@ -38,6 +38,8 @@ dependencies:
   flutter_tts: ^4.2.5
   string_similarity: ^2.2.0
   intl: ^0.20.3
+  http: ^1.6.0
+  connectivity_plus: ^7.3.2
 
 dev_dependencies:
   flutter_test:
