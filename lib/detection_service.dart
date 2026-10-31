@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:pehchaan/result_card.dart';
+import 'package:pehchaan/widgets/result_card.dart';
 
 enum RiskLevel { green, yellow, red }
 

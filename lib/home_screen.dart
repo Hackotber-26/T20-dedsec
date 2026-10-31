@@ -1,7 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:pehchaan/data/demo_test_data.dart';
+import 'package:pehchaan/language_service.dart';
+import 'package:pehchaan/widgets/result_card.dart';
 
 import 'detection_service.dart';
 
@@ -18,8 +23,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final DetectionService _detector = DetectionService.instance;
   final TextEditingController _inputController = TextEditingController();
   final FlutterTts _tts = FlutterTts();
-  final MobileScannerController _scannerController =
-      MobileScannerController();
+  final MobileScannerController _scannerController = MobileScannerController();
+
+  final Random _random = Random();
+  String? _lastRandomSampleTitle;
 
   DetectionMode _mode = DetectionMode.message;
   RiskResult? _result;
@@ -40,32 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _scannerController.dispose();
     _tts.stop();
     super.dispose();
-  }
-
-  Color get _riskColor {
-    if (_result == null) return muted;
-
-    switch (_result!.level) {
-      case RiskLevel.green:
-        return const Color(0xFF21865B);
-      case RiskLevel.yellow:
-        return const Color(0xFFC28A24);
-      case RiskLevel.red:
-        return const Color(0xFFD94B4B);
-    }
-  }
-
-  String get _riskLabel {
-    if (_result == null) return 'Waiting for analysis';
-
-    switch (_result!.level) {
-      case RiskLevel.green:
-        return 'LOW RISK';
-      case RiskLevel.yellow:
-        return 'SUSPICIOUS';
-      case RiskLevel.red:
-        return 'HIGH RISK';
-    }
   }
 
   Future<void> _analyze() async {
@@ -125,8 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (lower.startsWith('upi://')) {
       _mode = DetectionMode.upi;
-    } else if (lower.startsWith('http://') ||
-        lower.startsWith('https://')) {
+    } else if (lower.startsWith('http://') || lower.startsWith('https://')) {
       _mode = DetectionMode.website;
     } else {
       _mode = DetectionMode.message;
@@ -139,44 +119,58 @@ class _HomeScreenState extends State<HomeScreen> {
     _analyze();
   }
 
-  Future<void> _speakResult() async {
-    if (_result == null) return;
-
-    final languageSettings = {
-      'English': {
-        'locale': 'en-IN',
-        'message': 'The result is ${_result!.verdict}. ${_result!.summary}',
-      },
-      'Hindi': {
-        'locale': 'hi-IN',
-        'message':
-            'परिणाम है ${_result!.verdict}. ${_result!.summary}',
-      },
-      'Kannada': {
-        'locale': 'kn-IN',
-        'message':
-            'ಪರಿಶೀಲನೆಯ ಫಲಿತಾಂಶ ${_result!.verdict}. ${_result!.summary}',
-      },
-    };
-
-    final settings = languageSettings[_language]!;
-
-    try {
-      await _tts.setLanguage(settings['locale']!);
-      await _tts.setSpeechRate(0.45);
-      await _tts.speak(settings['message']!);
-    } catch (_) {
-      _showMessage('Speech is not available on this device.');
-    }
-  }
-
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  void _loadRandomSample() {
+    final DemoSampleMode sampleMode;
+
+    switch (_mode) {
+      case DetectionMode.message:
+        sampleMode = DemoSampleMode.message;
+        break;
+
+      case DetectionMode.website:
+        sampleMode = DemoSampleMode.website;
+        break;
+
+      case DetectionMode.upi:
+        sampleMode = DemoSampleMode.upi;
+        break;
+    }
+
+    // Get samples matching the current mode.
+    final availableSamples = DemoTestData.samples
+        .where((sample) => sample.mode == sampleMode)
+        .toList();
+
+    if (availableSamples.isEmpty) {
+      _showMessage('No demo samples available for this mode.');
+      return;
+    }
+
+    // Avoid repeating the previous sample when possible.
+    final filteredSamples = availableSamples.length > 1
+        ? availableSamples
+              .where((sample) => sample.title != _lastRandomSampleTitle)
+              .toList()
+        : availableSamples;
+
+    final selectedSample =
+        filteredSamples[_random.nextInt(filteredSamples.length)];
+
+    _lastRandomSampleTitle = selectedSample.title;
+
+    setState(() {
+      _inputController.text = selectedSample.input.trim();
+      _result = null;
+      _showScanner = false;
+    });
+
+    _showMessage('${selectedSample.title} loaded!');
   }
 
   void _selectMode(DetectionMode mode) {
@@ -185,15 +179,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _result = null;
       _showScanner = false;
       _inputController.clear();
-    });
-  }
-
-  void _loadSample(String value, DetectionMode mode) {
-    setState(() {
-      _mode = mode;
-      _inputController.text = value;
-      _result = null;
-      _showScanner = false;
     });
   }
 
@@ -226,10 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDesktopLayout() {
     return Row(
       children: [
-        SizedBox(
-          width: 250,
-          child: _buildSidebar(),
-        ),
+        SizedBox(width: 250, child: _buildSidebar()),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,15 +231,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                flex: 11,
-                                child: _buildDetectionPanel(),
-                              ),
+                              Expanded(flex: 11, child: _buildDetectionPanel()),
                               const SizedBox(width: 24),
-                              Expanded(
-                                flex: 9,
-                                child: _buildResultPanel(),
-                              ),
+                              Expanded(flex: 9, child: _buildResultPanel()),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -279,9 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       decoration: const BoxDecoration(
         color: surface,
-        border: Border(
-          right: BorderSide(color: borderColor),
-        ),
+        border: Border(right: BorderSide(color: borderColor)),
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -289,31 +263,27 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildLogo(),
           const SizedBox(height: 48),
-          const Text(
-            'WORKSPACE',
-            style: TextStyle(
-              color: muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _sidebarItem(
-            Icons.dashboard_outlined,
-            'Overview',
-            selected: true,
-          ),
-          _sidebarItem(
-            Icons.shield_outlined,
-            'Scam detection',
-            onTap: () => _selectMode(DetectionMode.message),
-          ),
-          _sidebarItem(
-            Icons.qr_code_scanner,
-            'QR scanner',
-            onTap: () => setState(() => _showScanner = true),
-          ),
+          // const Text(
+          //   'WORKSPACE',
+          //   style: TextStyle(
+          //     color: muted,
+          //     fontSize: 10,
+          //     fontWeight: FontWeight.w700,
+          //     letterSpacing: 1.5,
+          //   ),
+          // ),
+          // const SizedBox(height: 16),
+          // _sidebarItem(Icons.dashboard_outlined, 'Overview', selected: true),
+          // _sidebarItem(
+          //   Icons.shield_outlined,
+          //   'Scam detection',
+          //   onTap: () => _selectMode(DetectionMode.message),
+          // ),
+          // _sidebarItem(
+          //   Icons.qr_code_scanner,
+          //   'QR scanner',
+          //   onTap: () => setState(() => _showScanner = true),
+          // ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.all(16),
@@ -328,19 +298,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 SizedBox(height: 12),
                 Text(
                   'Stay protected',
-                  style: TextStyle(
-                    color: ink,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(color: ink, fontWeight: FontWeight.w700),
                 ),
                 SizedBox(height: 6),
                 Text(
                   'Always verify suspicious links and payment requests.',
-                  style: TextStyle(
-                    color: muted,
-                    fontSize: 12,
-                    height: 1.5,
-                  ),
+                  style: TextStyle(color: muted, fontSize: 12, height: 1.5),
                 ),
               ],
             ),
@@ -348,57 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           const Text(
             'PEHCHAAN  •  MVP',
-            style: TextStyle(
-              color: muted,
-              fontSize: 10,
-              letterSpacing: 1,
-            ),
+            style: TextStyle(color: muted, fontSize: 10, letterSpacing: 1),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _sidebarItem(
-    IconData icon,
-    String label, {
-    bool selected = false,
-    VoidCallback? onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: selected ? background : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 13,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 19,
-                  color: selected ? ink : muted,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? ink : accent,
-                    fontSize: 13,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -407,30 +322,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 32),
-      decoration: const BoxDecoration(
-        color: surface,
-        border: Border(
-          bottom: BorderSide(color: borderColor),
-        ),
-      ),
       child: Row(
         children: [
-          const Text(
-            'Scam protection dashboard',
-            style: TextStyle(
-              color: ink,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
           const Spacer(),
           _languageSelector(),
           const SizedBox(width: 16),
-          const CircleAvatar(
-            radius: 17,
-            backgroundColor: background,
-            child: Icon(Icons.person_outline, color: ink, size: 19),
-          ),
         ],
       ),
     );
@@ -462,10 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 8),
         Text(
           'Analyze suspicious messages, links, and payment requests.',
-          style: TextStyle(
-            color: accent.withValues(alpha: 0.8),
-            fontSize: 14,
-          ),
+          style: TextStyle(color: accent.withValues(alpha: 0.8), fontSize: 14),
         ),
       ],
     );
@@ -551,23 +444,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCompactHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 15,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
       decoration: const BoxDecoration(
         color: surface,
-        border: Border(
-          bottom: BorderSide(color: borderColor),
-        ),
+        border: Border(bottom: BorderSide(color: borderColor)),
       ),
-      child: Row(
-        children: [
-          _buildLogo(),
-          const Spacer(),
-          _languageSelector(),
-        ],
-      ),
+      child: Row(children: [_buildLogo(), const Spacer(), _languageSelector()]),
     );
   }
 
@@ -620,18 +502,9 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.w600,
           ),
           items: const [
-            DropdownMenuItem(
-              value: 'English',
-              child: Text('English'),
-            ),
-            DropdownMenuItem(
-              value: 'Hindi',
-              child: Text('हिन्दी'),
-            ),
-            DropdownMenuItem(
-              value: 'Kannada',
-              child: Text('ಕನ್ನಡ'),
-            ),
+            DropdownMenuItem(value: 'English', child: Text('English')),
+            DropdownMenuItem(value: 'Hindi', child: Text('हिन्दी')),
+            DropdownMenuItem(value: 'Kannada', child: Text('ಕನ್ನಡ')),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -708,9 +581,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: BoxDecoration(
                       color: selected ? ink : background,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: selected ? ink : borderColor,
-                      ),
+                      border: Border.all(color: selected ? ink : borderColor),
                     ),
                     child: Column(
                       children: [
@@ -774,17 +645,10 @@ class _HomeScreenState extends State<HomeScreen> {
           minLines: 5,
           maxLines: 7,
           keyboardType: TextInputType.multiline,
-          style: const TextStyle(
-            color: ink,
-            fontSize: 13,
-            height: 1.5,
-          ),
+          style: const TextStyle(color: ink, fontSize: 13, height: 1.5),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: Color(0xFFAAA5A8),
-              fontSize: 13,
-            ),
+            hintStyle: const TextStyle(color: Color(0xFFAAA5A8), fontSize: 13),
             filled: true,
             fillColor: const Color(0xFFFAF9F8),
             contentPadding: const EdgeInsets.all(15),
@@ -855,10 +719,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   SizedBox(width: 9),
                   Text(
                     'Analyze now',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                   ),
                 ],
               ),
@@ -869,12 +730,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSampleInputs() {
     final isMessage = _mode == DetectionMode.message;
     final isWebsite = _mode == DetectionMode.website;
-
-    final sample = isMessage
-        ? 'URGENT! Your bank account will be blocked. Verify your KYC immediately: http://example-suspicious-link.com'
-        : isWebsite
-            ? 'http://example-suspicious-link.com'
-            : 'upi://pay?pa=example@upi&pn=Unknown&am=5000';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -890,7 +745,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 9),
         InkWell(
-          onTap: () => _loadSample(sample, _mode),
+          onTap: () => _loadRandomSample(),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.all(11),
@@ -900,11 +755,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.lightbulb_outline,
-                  color: accent,
-                  size: 17,
-                ),
+                const Icon(Icons.lightbulb_outline, color: accent, size: 17),
                 const SizedBox(width: 9),
                 const Expanded(
                   child: Text(
@@ -916,11 +767,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                const Icon(
-                  Icons.arrow_forward,
-                  color: muted,
-                  size: 15,
-                ),
+                const Icon(Icons.arrow_forward, color: muted, size: 15),
               ],
             ),
           ),
@@ -974,255 +821,28 @@ class _HomeScreenState extends State<HomeScreen> {
   // RESULT PANEL
 
   Widget _buildResultPanel() {
-    return _panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeading(
-            'Analysis result',
-            'Your detection report appears here.',
-            Icons.analytics_outlined,
-          ),
-          const SizedBox(height: 22),
-          if (_result == null)
-            _buildEmptyResult()
-          else
-            _buildActualResult(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyResult() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: 35,
-        horizontal: 18,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 62,
-            width: 62,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.shield_outlined,
-              size: 29,
-              color: muted,
-            ),
-          ),
-          const SizedBox(height: 15),
-          const Text(
-            'No analysis yet',
-            style: TextStyle(
-              color: ink,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 7),
-          const Text(
-            'Submit a message, website, or UPI link to see its risk assessment.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: muted,
-              fontSize: 12,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActualResult() {
-    final result = _result!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: _riskColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _riskColor.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    result.level == RiskLevel.green
-                        ? Icons.verified_user_outlined
-                        : result.level == RiskLevel.yellow
-                            ? Icons.warning_amber_rounded
-                            : Icons.gpp_bad_outlined,
-                    color: _riskColor,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 9),
-                  Text(
-                    _riskLabel,
-                    style: TextStyle(
-                      color: _riskColor,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 17),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '${result.score}',
-                    style: TextStyle(
-                      color: _riskColor,
-                      fontSize: 48,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 5, left: 5),
-                    child: Text(
-                      '/ 100 risk score',
-                      style: TextStyle(
-                        color: muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: (result.score / 100).clamp(0.0, 1.0),
-                  minHeight: 8,
-                  backgroundColor: Colors.white,
-                  valueColor: AlwaysStoppedAnimation<Color>(_riskColor),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                result.verdict,
-                style: const TextStyle(
-                  color: ink,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                result.summary,
-                style: const TextStyle(
-                  color: accent,
-                  fontSize: 12,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
-        const Text(
-          'DETECTION INSIGHTS',
-          style: TextStyle(
-            color: muted,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (result.reasons.isEmpty)
-          const Text(
-            'No specific warning indicators were detected.',
-            style: TextStyle(color: muted, fontSize: 12),
-          )
-        else
-          ...result.reasons.map(
-            (reason) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: _riskColor,
-                    size: 17,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      reason,
-                      style: const TextStyle(
-                        color: accent,
-                        fontSize: 12,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _speakResult,
-            icon: const Icon(Icons.volume_up_outlined, size: 18),
-            label: const Text('Listen to result'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: ink,
-              side: const BorderSide(color: borderColor),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: TextButton.icon(
-            onPressed: () {
-              Clipboard.setData(
-                ClipboardData(
-                  text:
-                      'Pehchaan analysis\n${result.verdict}\nRisk score: ${result.score}/100\n${result.summary}\n${result.reasons.join('\n')}',
-                ),
-              );
-              _showMessage('Analysis copied to clipboard.');
+    return ResultCard(
+      result: _result,
+      onSpeak: _result == null
+          ? null
+          : () async {
+              try {
+                await TtsService.instance.speakResult(
+                  _result!,
+                  language: _language,
+                );
+              } catch (e) {
+                _showMessage('Speech could not be played.');
+              }
             },
-            icon: const Icon(Icons.copy, size: 16),
-            label: const Text('Copy report'),
-            style: TextButton.styleFrom(
-              foregroundColor: accent,
-            ),
-          ),
-        ),
-      ],
+      onAnalyzeAgain: () {
+        setState(() {
+          _result = null;
+          _inputController.clear();
+        });
+      },
     );
   }
-
-  // SHARED COMPONENTS
 
   Widget _panel({required Widget child}) {
     return Container(
@@ -1244,11 +864,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _sectionHeading(
-    String title,
-    String subtitle,
-    IconData icon,
-  ) {
+  Widget _sectionHeading(String title, String subtitle, IconData icon) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1277,10 +893,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: muted, fontSize: 11),
               ),
             ],
           ),
@@ -1300,11 +913,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.lightbulb_outline,
-            color: Colors.white,
-            size: 23,
-          ),
+          Icon(Icons.lightbulb_outline, color: Colors.white, size: 23),
           SizedBox(width: 14),
           Expanded(
             child: Column(
