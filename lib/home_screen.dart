@@ -1,14 +1,14 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pehchaan/data/demo_test_data.dart';
 import 'package:pehchaan/language_service.dart';
+import 'package:pehchaan/service/hybrid_detection_service.dart';
 import 'package:pehchaan/widgets/result_card.dart';
 
-import 'detection_service.dart';
+import 'service/detection_service.dart';
 
 enum DetectionMode { message, website, upi }
 
@@ -20,6 +20,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final HybridDetectionService _hybridDetector = HybridDetectionService();
+
+  bool _isAnalyzing = false;
+  String _detectionSource = '';
   final DetectionService _detector = DetectionService.instance;
   final TextEditingController _inputController = TextEditingController();
   final FlutterTts _tts = FlutterTts();
@@ -43,57 +47,67 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _hybridDetector.dispose();
     _inputController.dispose();
     _scannerController.dispose();
     _tts.stop();
     super.dispose();
   }
 
-  Future<void> _analyze() async {
+  Future<void> _analyzeInput() async {
+    if (_isAnalyzing) return;
+
     final input = _inputController.text.trim();
 
     if (input.isEmpty) {
-      _showMessage('Please enter something to analyze.');
+      _showMessage('Please enter something to analyse.');
       return;
     }
 
-    FocusScope.of(context).unfocus();
-
     setState(() {
-      _isLoading = true;
-      _showScanner = false;
+      _isAnalyzing = true;
       _result = null;
+      _detectionSource = '';
     });
 
     try {
-      RiskResult result;
+      late DetectionOutcome outcome;
 
       switch (_mode) {
         case DetectionMode.message:
-          result = _detector.checkMessage(input);
+          outcome = await _hybridDetector.analyzeMessage(input);
           break;
+
         case DetectionMode.website:
-          result = _detector.checkUrl(input);
+          outcome = await _hybridDetector.analyzeUrl(input);
           break;
+
         case DetectionMode.upi:
-          result = _detector.checkUpi(input);
+          outcome = await _hybridDetector.analyzeUpi(input);
           break;
       }
 
       if (!mounted) return;
 
       setState(() {
-        _result = result;
-        _isLoading = false;
+        _result = outcome.result;
+        _detectionSource = outcome.sourceLabel;
       });
-    } catch (e) {
+
+      if (outcome.source == DetectionSource.localFallback) {
+        _showMessage('AI unavailable. Offline protection was used.');
+      }
+    } catch (error) {
       if (!mounted) return;
 
-      setState(() {
-        _isLoading = false;
-      });
-
-      _showMessage('Could not analyze this input. Please try again.');
+      _showMessage('Analysis failed. Please try again.');
+      debugPrint('Pehchaan analysis error: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAnalyzing = false;
+        });
+      }
     }
   }
 
@@ -116,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _showScanner = false;
     });
 
-    _analyze();
+    _analyzeInput();
   }
 
   void _showMessage(String message) {
@@ -234,6 +248,30 @@ class _HomeScreenState extends State<HomeScreen> {
                               Expanded(flex: 11, child: _buildDetectionPanel()),
                               const SizedBox(width: 24),
                               Expanded(flex: 9, child: _buildResultPanel()),
+                              if (_result != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _detectionSource == 'AI Analysis'
+                                            ? Icons.psychology_outlined
+                                            : Icons.shield_outlined,
+                                        size: 18,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _detectionSource,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -689,41 +727,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAnalyzeButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 49,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _analyze,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: ink,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: muted,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.shield_outlined, size: 18),
-                  SizedBox(width: 9),
-                  Text(
-                    'Analyze now',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                ],
-              ),
-      ),
+    return ElevatedButton.icon(
+      onPressed: _isAnalyzing ? null : _analyzeInput,
+      icon: _isAnalyzing
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.shield_outlined),
+      label: Text(_isAnalyzing ? 'Analysing...' : 'Analyse'),
     );
   }
 

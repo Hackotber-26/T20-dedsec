@@ -1,6 +1,6 @@
 import 'package:flutter_tts/flutter_tts.dart';
 
-import '../detection_service.dart';
+import 'service/detection_service.dart';
 
 class TtsService {
   TtsService._();

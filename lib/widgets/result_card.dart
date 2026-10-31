@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../detection_service.dart';
+import '../service/detection_service.dart';
 
 class ResultCard extends StatelessWidget {
   final RiskResult? result;
