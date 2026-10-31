@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pehchaan/data/demo_test_data.dart';
 import 'package:pehchaan/language_service.dart';
 import 'package:pehchaan/service/hybrid_detection_service.dart';
@@ -26,7 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String _detectionSource = '';
   final TextEditingController _inputController = TextEditingController();
   final FlutterTts _tts = FlutterTts();
-  final MobileScannerController _scannerController = MobileScannerController();
 
   final Random _random = Random();
   String? _lastRandomSampleTitle;
@@ -47,7 +45,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _hybridDetector.dispose();
     _inputController.dispose();
-    _scannerController.dispose();
     _tts.stop();
     super.dispose();
   }
@@ -711,7 +708,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() => _showScanner = true);
               },
               icon: const Icon(Icons.qr_code_scanner, size: 18),
-              label: const Text('Scan QR using camera'),
+              label: const Text('Upload QR Code'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: ink,
                 side: const BorderSide(color: borderColor),
@@ -800,23 +797,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            height: 280,
-            child: MobileScanner(
-              controller: _scannerController,
-              onDetect: (capture) {
-                final barcode = capture.barcodes.firstOrNull;
-                final value = barcode?.rawValue;
 
-                if (value != null && value.isNotEmpty && _showScanner) {
-                  _handleQr(value);
-                }
-              },
-            ),
-          ),
-        ),
         const SizedBox(height: 10),
         const Text(
           'Position the QR code inside the camera view.',

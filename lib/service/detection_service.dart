@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:pehchaan/widgets/result_card.dart';
-
 enum RiskLevel { green, yellow, red }
 
 class RiskResult {
@@ -535,7 +533,6 @@ class DetectionService {
     final isIpv6 = host.contains(':');
     final labels = host.split('.');
     final registrable = _registrableDomain(host);
-    final registrableLabel = registrable.split('.').first;
 
     // 1. Domain/brand impersonation. Only compare meaningful labels against
     // actual official registrable domains, not short brand aliases.
@@ -591,7 +588,7 @@ class DetectionService {
       addReason('The hostname is unusually long.');
     }
     if (shorteners.contains(host)) {
-      structureRisk += 15;
+      structureRisk += 30;
       addReason('This is a link-shortening domain; its final destination is not visible in the supplied URL.');
     }
 
@@ -693,19 +690,9 @@ class DetectionService {
     final params = uri.queryParameters;
 
     final payee = params['pa'];
-    final name = params['pn'];
     final amount = params['am'];
     final currency = params['cu'];
     final note = params['tn'];
-
-    final details = UpiDetails(
-      payeeAddress: payee,
-      payeeName: name,
-      amount: amount,
-      currency: currency,
-      transactionNote: note,
-      isPaymentRequest: true,
-    );
 
     int score = 0;
     final List<String> reasons = [];
@@ -842,12 +829,6 @@ class DetectionService {
       result = result.replaceAll(from, to);
     });
     return result;
-  }
-
-  bool _isTrustedHost(String host) {
-    return trustedDomains.values.any(
-      (domain) => host == domain || host.endsWith('.$domain'),
-    );
   }
 
   double _similarity(String a, String b) {
