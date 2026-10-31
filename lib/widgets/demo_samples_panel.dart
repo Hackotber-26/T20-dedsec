@@ -5,18 +5,14 @@ import '../data/demo_test_data.dart';
 class DemoSamplesPanel extends StatefulWidget {
   final ValueChanged<DemoSample> onSampleSelected;
 
-  const DemoSamplesPanel({
-    super.key,
-    required this.onSampleSelected,
-  });
+  const DemoSamplesPanel({super.key, required this.onSampleSelected});
 
   @override
   State<DemoSamplesPanel> createState() => _DemoSamplesPanelState();
 }
 
 class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
-  final TextEditingController _searchController =
-      TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   DemoRiskCategory? _riskFilter;
   DemoSampleMode? _modeFilter;
@@ -60,10 +56,10 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
       final matchesRisk =
           _riskFilter == null || sample.expectedRisk == _riskFilter;
 
-      final matchesMode =
-          _modeFilter == null || sample.mode == _modeFilter;
+      final matchesMode = _modeFilter == null || sample.mode == _modeFilter;
 
-      final matchesSearch = query.isEmpty ||
+      final matchesSearch =
+          query.isEmpty ||
           sample.title.toLowerCase().contains(query) ||
           sample.description.toLowerCase().contains(query) ||
           sample.input.toLowerCase().contains(query);
@@ -81,18 +77,10 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.white,
-      insetPadding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 24,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: 760,
-          maxHeight: 720,
-        ),
+        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 720),
         child: Padding(
           padding: const EdgeInsets.all(22),
           child: Column(
@@ -106,9 +94,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
               const SizedBox(height: 10),
               _modeFilters(),
               const SizedBox(height: 16),
-              Expanded(
-                child: _sampleList(),
-              ),
+              Expanded(child: _sampleList()),
               const SizedBox(height: 12),
               _footer(),
             ],
@@ -128,10 +114,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
             color: const Color(0xFFF6F5F3),
             borderRadius: BorderRadius.circular(11),
           ),
-          child: const Icon(
-            Icons.library_books_outlined,
-            color: ink,
-          ),
+          child: const Icon(Icons.library_books_outlined, color: ink),
         ),
         const SizedBox(width: 12),
         const Expanded(
@@ -149,10 +132,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
               SizedBox(height: 3),
               Text(
                 'Choose a scenario to test Pehchaan',
-                style: TextStyle(
-                  color: muted,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: muted, fontSize: 11),
               ),
             ],
           ),
@@ -172,11 +152,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
       decoration: InputDecoration(
         hintText: 'Search samples...',
         hintStyle: const TextStyle(color: muted, fontSize: 13),
-        prefixIcon: const Icon(
-          Icons.search,
-          color: muted,
-          size: 19,
-        ),
+        prefixIcon: const Icon(Icons.search, color: muted, size: 19),
         filled: true,
         fillColor: const Color(0xFFF6F5F3),
         border: OutlineInputBorder(
@@ -211,25 +187,20 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
           label: 'High risk',
           selected: _riskFilter == DemoRiskCategory.high,
           color: _riskColor(DemoRiskCategory.high),
-          onTap: () => setState(
-            () => _riskFilter = DemoRiskCategory.high,
-          ),
+          onTap: () => setState(() => _riskFilter = DemoRiskCategory.high),
         ),
         _filterChip(
           label: 'Suspicious',
           selected: _riskFilter == DemoRiskCategory.suspicious,
           color: _riskColor(DemoRiskCategory.suspicious),
-          onTap: () => setState(
-            () => _riskFilter = DemoRiskCategory.suspicious,
-          ),
+          onTap: () =>
+              setState(() => _riskFilter = DemoRiskCategory.suspicious),
         ),
         _filterChip(
           label: 'Low risk',
           selected: _riskFilter == DemoRiskCategory.low,
           color: _riskColor(DemoRiskCategory.low),
-          onTap: () => setState(
-            () => _riskFilter = DemoRiskCategory.low,
-          ),
+          onTap: () => setState(() => _riskFilter = DemoRiskCategory.low),
         ),
       ],
     );
@@ -261,9 +232,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
       onSelected: (_) => onTap(),
       selectedColor: activeColor.withValues(alpha: 0.12),
       backgroundColor: const Color(0xFFF6F5F3),
-      side: BorderSide(
-        color: selected ? activeColor : border,
-      ),
+      side: BorderSide(color: selected ? activeColor : border),
       labelStyle: TextStyle(
         color: selected ? activeColor : muted,
         fontSize: 11,
@@ -283,9 +252,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
       onSelected: (_) => setState(() => _modeFilter = mode),
       selectedColor: ink,
       backgroundColor: const Color(0xFFF6F5F3),
-      side: BorderSide(
-        color: selected ? ink : border,
-      ),
+      side: BorderSide(color: selected ? ink : border),
       labelStyle: TextStyle(
         color: selected ? Colors.white : muted,
         fontSize: 11,
@@ -308,10 +275,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
             SizedBox(height: 10),
             Text(
               'No samples found',
-              style: TextStyle(
-                color: ink,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: ink, fontWeight: FontWeight.w700),
             ),
             SizedBox(height: 5),
             Text(
@@ -325,7 +289,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
 
     return ListView.separated(
       itemCount: samples.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 9),
+      separatorBuilder: (_, _) => const SizedBox(height: 9),
       itemBuilder: (context, index) {
         final sample = samples[index];
         final color = _riskColor(sample.expectedRisk);
@@ -347,11 +311,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: Icon(
-                      _modeIcon(sample.mode),
-                      color: ink,
-                      size: 19,
-                    ),
+                    child: Icon(_modeIcon(sample.mode), color: ink, size: 19),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -371,18 +331,12 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
                           sample.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: muted,
-                            fontSize: 10,
-                          ),
+                          style: const TextStyle(color: muted, fontSize: 10),
                         ),
                         const SizedBox(height: 7),
                         Text(
                           sample.modeLabel,
-                          style: const TextStyle(
-                            color: muted,
-                            fontSize: 10,
-                          ),
+                          style: const TextStyle(color: muted, fontSize: 10),
                         ),
                       ],
                     ),
@@ -410,11 +364,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Icon(
-                        Icons.arrow_forward,
-                        size: 15,
-                        color: muted,
-                      ),
+                      const Icon(Icons.arrow_forward, size: 15, color: muted),
                     ],
                   ),
                 ],
@@ -432,10 +382,7 @@ class _DemoSamplesPanelState extends State<DemoSamplesPanel> {
         Expanded(
           child: Text(
             '${_filteredSamples.length} of ${DemoTestData.samples.length} samples',
-            style: const TextStyle(
-              color: muted,
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: muted, fontSize: 11),
           ),
         ),
         TextButton(

@@ -161,9 +161,10 @@ class DetectionService {
     }
 
     bool matchesAny(List<String> patterns) {
-      return patterns.any(
-        (pattern) => RegExp(pattern, caseSensitive: false).hasMatch(text),
-      );
+      return patterns.any((pattern) => RegExp(
+            pattern,
+            caseSensitive: false,
+          ).hasMatch(text));
     }
 
     final hasUrl = RegExp(
@@ -195,12 +196,11 @@ class DetectionService {
         'The message asks you to share or enter sensitive credentials '
         'such as an OTP, UPI PIN, CVV or password. Never share these.',
       );
-    } else if (credentialMention &&
-        matchesAny([
-          r'\b(do not|never|dont|dont|not)\b.{0,25}'
-              r'\b(share|tell|reveal|disclose)\b',
-          r'\b(if you did not|if this was not)\b',
-        ])) {
+    } else if (credentialMention && matchesAny([
+      r'\b(do not|never|dont|dont|not)\b.{0,25}'
+          r'\b(share|tell|reveal|disclose)\b',
+      r'\b(if you did not|if this was not)\b',
+    ])) {
       // Security advice and defensive warnings should not be treated as
       // credential theft requests.
     }
@@ -246,11 +246,10 @@ class DetectionService {
         'The job or internship offer asks for an upfront fee. '
         'Legitimate employers generally do not require payment to secure a job.',
       );
-    } else if (jobOffer &&
-        matchesAny([
-          r'\b(no experience|required|earn|per day|daily income|'
-              r'limited slots|easy money|guaranteed selection)\b',
-        ])) {
+    } else if (jobOffer && matchesAny([
+      r'\b(no experience|required|earn|per day|daily income|'
+          r'limited slots|easy money|guaranteed selection)\b',
+    ])) {
       addRule(
         20,
         'The unsolicited job offer makes unusually easy or attractive '
@@ -292,10 +291,8 @@ class DetectionService {
       r'\b(lose access|account access will|connection will)\b',
     ]);
 
-    if (urgency &&
-        (threatOrDeadline ||
-            hasUrl ||
-            matchesAny([r'\b(pay|kyc|verify|update|call|contact|click)\b']))) {
+    if (urgency && (threatOrDeadline || hasUrl ||
+        matchesAny([r'\b(pay|kyc|verify|update|call|contact|click)\b']))) {
       addRule(
         35,
         'The message uses urgency, a threat or a short deadline to pressure '
@@ -311,10 +308,8 @@ class DetectionService {
           r'\b(kyc|bank account|card details|account)\b',
     ]);
 
-    if (kycOrAccountAction &&
-        (hasUrl ||
-            asksForSecret ||
-            matchesAny([r'\b(call|pay|click|submit|update immediately)\b']))) {
+    if (kycOrAccountAction && (hasUrl || asksForSecret ||
+        matchesAny([r'\b(call|pay|click|submit|update immediately)\b']))) {
       addRule(
         40,
         'The message combines a banking or KYC-related request with a link, '
@@ -367,12 +362,8 @@ class DetectionService {
           r'update|share|submit|send|approve)\b',
     ]);
 
-    if (impersonation &&
-        impersonationAction &&
-        (hasUrl ||
-            urgency ||
-            asksForSecret ||
-            paymentPressure ||
+    if (impersonation && impersonationAction &&
+        (hasUrl || urgency || asksForSecret || paymentPressure ||
             kycOrAccountAction)) {
       addRule(
         25,
@@ -382,22 +373,16 @@ class DetectionService {
       );
     }
 
-    final deliveryScam =
-        matchesAny([
-          r'\b(parcel|shipment|package|customs|courier|delivery)\b',
-        ]) &&
-        matchesAny([
-          r'\b(address incomplete|confirm your address|address verification|'
-              r'customs fee|clearance charge|redelivery fee|held at customs|'
-              r'pay.*delivery|delivery.*payment)\b',
-        ]);
+    final deliveryScam = matchesAny([
+      r'\b(parcel|shipment|package|customs|courier|delivery)\b',
+    ]) && matchesAny([
+      r'\b(address incomplete|confirm your address|address verification|'
+          r'customs fee|clearance charge|redelivery fee|held at customs|'
+          r'pay.*delivery|delivery.*payment)\b',
+    ]);
 
-    if (deliveryScam &&
-        (hasUrl ||
-            paymentPressure ||
-            matchesAny([
-              r'\b(mobile number|personal details|pay|fee|charge)\b',
-            ]))) {
+    if (deliveryScam && (hasUrl || paymentPressure ||
+        matchesAny([r'\b(mobile number|personal details|pay|fee|charge)\b']))) {
       addRule(
         35,
         'The delivery message asks for extra payment or personal details '
@@ -412,11 +397,8 @@ class DetectionService {
           r'lottery|giveaway|free iphone)\b',
     ]);
 
-    if (prizeScam &&
-        (hasUrl ||
-            paymentPressure ||
-            asksForSecret ||
-            matchesAny([r'\b(claim|activate|redeem|fee|winner)\b']))) {
+    if (prizeScam && (hasUrl || paymentPressure || asksForSecret ||
+        matchesAny([r'\b(claim|activate|redeem|fee|winner)\b']))) {
       addRule(
         35,
         'The message offers an unexpected prize, gift or reward and asks '
@@ -424,19 +406,15 @@ class DetectionService {
       );
     }
 
-    final socialAccountScam =
-        matchesAny([
-          r'\b(instagram|facebook|whatsapp|telegram|social media)\b',
-        ]) &&
-        matchesAny([
-          r'\b(appeal|verification|reported|impersonation|copyright|'
-              r'permanent restriction|account disabled|account suspended)\b',
-        ]);
+    final socialAccountScam = matchesAny([
+      r'\b(instagram|facebook|whatsapp|telegram|social media)\b',
+    ]) && matchesAny([
+      r'\b(appeal|verification|reported|impersonation|copyright|'
+          r'permanent restriction|account disabled|account suspended)\b',
+    ]);
 
-    if (socialAccountScam &&
-        (hasUrl ||
-            urgency ||
-            matchesAny([r'\b(login|password|verify|submit|appeal now)\b']))) {
+    if (socialAccountScam && (hasUrl || urgency ||
+        matchesAny([r'\b(login|password|verify|submit|appeal now)\b']))) {
       addRule(
         35,
         'The message uses a social-media account warning or appeal to prompt '
@@ -475,13 +453,8 @@ class DetectionService {
       );
     }
 
-    if (hasUrl &&
-        (urgency ||
-            asksForSecret ||
-            kycOrAccountAction ||
-            prizeScam ||
-            socialAccountScam ||
-            deliveryScam)) {
+    if (hasUrl && (urgency || asksForSecret || kycOrAccountAction ||
+        prizeScam || socialAccountScam || deliveryScam)) {
       addRule(
         25,
         'The message combines a link with a suspicious request. Do not open '
@@ -521,161 +494,168 @@ class DetectionService {
       );
     }
 
-    return _buildResult(inputType: 'message', score: score, reasons: reasons);
+    return _buildResult(
+      inputType: 'message',
+      score: score,
+      reasons: reasons,
+    );
   }
 
   RiskResult checkUrl(String input) {
     final raw = input.trim();
+    if (raw.isEmpty) return _invalidResult('url');
 
-    if (raw.isEmpty) {
-      return _invalidResult('url');
-    }
-
-    String normalized = raw;
-
-    if (!normalized.contains(':')) {
-      normalized = 'https:$normalized';
-    }
-
+    // Accept bare domains, but do not mistake a port (example.com:8080)
+    // for a URI scheme.
+    final normalized = raw.startsWith('//')
+        ? 'https:$raw'
+        : (raw.contains('://') ? raw : 'https://$raw');
     final uri = Uri.tryParse(normalized);
-
     if (uri == null || !uri.hasAuthority || uri.host.isEmpty) {
       return _invalidResult('url');
     }
 
-    final host = uri.host.toLowerCase();
-
-    if (host.contains(' ') || host.startsWith('.') || host.endsWith('.')) {
+    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
+    if (host.isEmpty || host.contains(' ') || host.startsWith('.') ||
+        host.endsWith('.') || host.length > 253) {
       return _invalidResult('url');
     }
 
-    int score = 0;
-    final List<String> reasons = [];
+    final reasons = <String>[];
+    var brandRisk = 0;
+    var structureRisk = 0;
+    var contentRisk = 0;
+    var domainRisk = 0;
 
-    void addRule(int points, String reason) {
-      score += points;
-      reasons.add(reason);
-    }
-
-    if (uri.scheme.toLowerCase() == 'http') {
-      addRule(
-        10,
-        'This URL uses HTTP instead of HTTPS. '
-        'Its connection is not encrypted.',
-      );
-    }
-
-    if (shorteners.contains(host)) {
-      addRule(
-        20,
-        'This URL uses a link-shortening service. '
-        'Its final destination is hidden.',
-      );
+    void addReason(String reason) {
+      if (!reasons.contains(reason)) reasons.add(reason);
     }
 
     final isIpv4 = RegExp(r'^(?:\d{1,3}\.){3}\d{1,3}$').hasMatch(host);
-
     final isIpv6 = host.contains(':');
+    final labels = host.split('.');
+    final registrable = _registrableDomain(host);
+    final registrableLabel = registrable.split('.').first;
 
-    if (isIpv4 || isIpv6) {
-      addRule(
-        25,
-        'This URL uses an IP address instead of '
-        'a recognizable domain name.',
-      );
-    }
-
-    if (uri.userInfo.isNotEmpty) {
-      addRule(
-        35,
-        'This URL contains user-information fields '
-        'that can disguise its actual destination.',
-      );
-    }
-
-    if (host.contains('xn--')) {
-      addRule(
-        30,
-        'This domain uses internationalized encoding. '
-        'Check for possible lookalike characters.',
-      );
-    }
-
-    final suspiciousWords = [
-      'login',
-      'verify',
-      'secure',
-      'update',
-      'account',
-      'kyc',
-      'banking',
-      'wallet',
-    ];
-
-    final hasBrandKeyword = trustedDomains.keys.any(
-      (brand) => host.contains(brand),
-    );
-
-    final hasSuspiciousWord = suspiciousWords.any(
-      (word) => host.contains(word),
-    );
-
-    if (hasBrandKeyword && hasSuspiciousWord && !_isTrustedHost(host)) {
-      addRule(
-        20,
-        'The hostname combines a trusted brand name '
-        'with suspicious account or login terminology.',
-      );
-    }
-
+    // 1. Domain/brand impersonation. Only compare meaningful labels against
+    // actual official registrable domains, not short brand aliases.
     for (final entry in trustedDomains.entries) {
       final brand = entry.key;
       final officialDomain = entry.value;
+      final officialLabel = _registrableDomain(officialDomain).split('.').first;
+      final isOfficial = host == officialDomain || host.endsWith('.$officialDomain');
+      if (isOfficial) continue;
 
-      if (_isTrustedHost(host)) {
-        break;
-      }
-
-      final labels = host.split('.');
-      final similarity = _similarity(labels.first, brand);
-
-      final hasBrandText = host.contains(brand);
-
-      if (similarity >= 0.70 ||
-          (hasBrandText &&
-              host != officialDomain &&
-              !host.endsWith('.$officialDomain'))) {
-        addRule(
-          35,
-          'This domain may imitate $brand. '
-          'Verify the official website independently.',
-        );
-        break;
+      final normalizedBrand = _normaliseConfusables(officialLabel);
+      final candidateLabels = labels.where((label) => label.isNotEmpty).toList();
+      for (final label in candidateLabels) {
+        final normalizedLabel = _normaliseConfusables(label);
+        final similarity = _similarity(normalizedLabel, normalizedBrand);
+        final exactBrandMention = normalizedLabel == _normaliseConfusables(brand) ||
+            normalizedLabel == normalizedBrand ||
+            normalizedLabel.contains(normalizedBrand);
+        final threshold = normalizedBrand.length <= 4 ? 0.86 : 0.76;
+        if (exactBrandMention ||
+            (normalizedLabel.length >= 4 && similarity >= threshold)) {
+          brandRisk = math.max(brandRisk, 38).toInt();
+          addReason('The hostname resembles or mentions $brand but is not its official domain ($officialDomain).');
+          break;
+        }
       }
     }
 
+    // 2. Hostname structure and obfuscation.
+    if (uri.userInfo.isNotEmpty) {
+      structureRisk += 30;
+      addReason('The URL contains user-information before the hostname, which can disguise its real destination.');
+    }
+    if (isIpv4 || isIpv6) {
+      structureRisk += 25;
+      addReason('The URL uses an IP address instead of a normal domain name.');
+    }
+    if (host.contains('xn--')) {
+      structureRisk += 18;
+      addReason('The domain contains punycode-encoded labels; inspect for international-character lookalikes.');
+    }
+    final unicodeHost = host.runes.any((r) => r > 127);
+    if (unicodeHost) {
+      structureRisk += 12;
+      addReason('The domain contains non-ASCII characters that may visually resemble other letters.');
+    }
+    if (labels.length >= 5) {
+      structureRisk += 10;
+      addReason('The hostname has many subdomain levels, which can make its actual owner harder to identify.');
+    }
+    if (host.length > 45) {
+      structureRisk += 8;
+      addReason('The hostname is unusually long.');
+    }
+    if (shorteners.contains(host)) {
+      structureRisk += 15;
+      addReason('This is a link-shortening domain; its final destination is not visible in the supplied URL.');
+    }
+
+    // Brand text in a subdomain is not proof of ownership. For example,
+    // sbi.co.in.attacker.example is controlled by attacker.example.
+    if (registrable != host && trustedDomains.keys.any((b) =>
+        labels.take(labels.length - registrable.split('.').length).any((l) =>
+            _normaliseConfusables(l).contains(_normaliseConfusables(b))))) {
+      brandRisk = math.max(brandRisk, 38).toInt();
+      addReason('A trusted brand name appears in a subdomain, but the registrable domain belongs to a different site.');
+    }
+
+    // 3. Suspicious URL content. These are weak signals unless combined with
+    // brand deception or other risky behavior.
+    final pathAndQuery = '${uri.path}?${uri.query}'.toLowerCase();
     final suspiciousPath = RegExp(
-      r'(verify-account|confirm-otp|'
-      r'bank-login|update-kyc|free-reward)',
+      r'(login|log-in|signin|sign-in|verify|verification|confirm|otp|kyc|'
+      r'wallet|banking|password|reset|claim|reward|refund|payment)',
       caseSensitive: false,
     );
-
-    if (suspiciousPath.hasMatch('${uri.path}?${uri.query}')) {
-      addRule(
-        15,
-        'The URL contains suspicious login, verification '
-        'or reward-related patterns.',
-      );
+    if (suspiciousPath.hasMatch(pathAndQuery)) {
+      contentRisk += 10;
+      addReason('The URL path or query contains login, verification, payment or reward-related terms.');
     }
+    if (uri.scheme.toLowerCase() == 'http') {
+      contentRisk += 8;
+      addReason('The URL uses HTTP rather than HTTPS; its connection is not encrypted. This alone does not prove fraud.');
+    }
+    if (uri.hasQuery && uri.query.length > 180) {
+      contentRisk += 5;
+      addReason('The URL contains an unusually long query string.');
+    }
+
+    // 4. Weak TLD signal. Never block or heavily penalise a TLD on its own.
+    const higherRiskTlds = {'click', 'top', 'work', 'zip', 'rest', 'country', 'gq', 'tk', 'ml', 'cf'};
+    final tld = labels.isNotEmpty ? labels.last : '';
+    if (higherRiskTlds.contains(tld)) {
+      domainRisk += 5;
+      addReason('The domain uses a TLD sometimes seen in abusive registrations; this is only a weak signal.');
+    }
+
+    // Keep the category contributions bounded so repeated related indicators
+    // do not automatically drive every result to 100.
+    final score = (brandRisk.clamp(0, 40) +
+            structureRisk.clamp(0, 25) +
+            contentRisk.clamp(0, 15) +
+            domainRisk.clamp(0, 5))
+        .clamp(0, 100)
+        .toInt();
 
     if (reasons.isEmpty) {
-      reasons.add(
-        'No strong URL warning signs were detected. '
-        'This does not guarantee that the website is safe.',
-      );
+      addReason('No strong URL warning signs were detected. Domain reputation and website content were not verified.');
     }
 
-    return _buildResult(inputType: 'url', score: score, reasons: reasons);
+    return _buildResult(
+      inputType: 'url',
+      score: score,
+      reasons: reasons,
+      customSummary: score >= redThreshold
+          ? 'Multiple strong URL warning signs were detected. Do not enter credentials or payment details.'
+          : score >= yellowThreshold
+              ? 'Some URL warning signs were detected. Verify the domain independently before proceeding.'
+              : 'No strong local URL warning signs were detected. This is not a reputation check and does not prove the website is safe.',
+    );
   }
 
   RiskResult checkUpi(String input) {
@@ -829,6 +809,39 @@ class DetectionService {
       transactionNote: params['tn'],
       isPaymentRequest: true,
     );
+  }
+
+  // Lightweight fallback for common multi-label public suffixes. For full
+  // public-suffix accuracy, the online backend uses tldextract's bundled PSL.
+  String _registrableDomain(String host) {
+    final labels = host.split('.');
+    if (labels.length <= 2) return host;
+    const compoundSuffixes = {
+      'co.in', 'com.in', 'net.in', 'org.in', 'gen.in', 'firm.in',
+      'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'net.au',
+      'org.au', 'co.nz', 'com.sg', 'com.my', 'com.br', 'com.cn',
+      'com.hk', 'co.jp', 'co.za',
+    };
+    final lastTwo = '${labels[labels.length - 2]}.${labels.last}';
+    if (compoundSuffixes.contains(lastTwo) && labels.length >= 3) {
+      return labels.sublist(labels.length - 3).join('.');
+    }
+    return labels.sublist(labels.length - 2).join('.');
+  }
+
+  String _normaliseConfusables(String value) {
+    const substitutions = {
+      '0': 'o', '1': 'l', '3': 'e', '5': 's',
+      'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c',
+      'х': 'x', 'і': 'i', 'ј': 'j', 'у': 'y', 'к': 'k',
+      'м': 'm', 'т': 't', 'в': 'b', 'н': 'h',
+      'ο': 'o', 'ρ': 'p', 'ι': 'i', 'κ': 'k', 'ν': 'v',
+    };
+    var result = value.toLowerCase();
+    substitutions.forEach((from, to) {
+      result = result.replaceAll(from, to);
+    });
+    return result;
   }
 
   bool _isTrustedHost(String host) {

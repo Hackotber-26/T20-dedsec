@@ -6,7 +6,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
+from url_reputation import router as url_reputation_router
 
 # --------------------------------------------------
 # Configuration
@@ -46,6 +46,8 @@ app = FastAPI(
     description="Free local AI-powered scam detection",
     version="1.0.0"
 )
+
+app.include_router(url_reputation_router)
 
 
 # Development CORS configuration.

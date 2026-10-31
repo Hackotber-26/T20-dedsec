@@ -24,7 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isAnalyzing = false;
   String _detectionSource = '';
-  final DetectionService _detector = DetectionService.instance;
   final TextEditingController _inputController = TextEditingController();
   final FlutterTts _tts = FlutterTts();
   final MobileScannerController _scannerController = MobileScannerController();
@@ -34,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   DetectionMode _mode = DetectionMode.message;
   RiskResult? _result;
-  bool _isLoading = false;
   bool _showScanner = false;
   String _language = 'English';
 
