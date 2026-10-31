@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:pehchaan/home_screen.dart';
+import 'home_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const PehchaanApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class PehchaanApp extends StatelessWidget {
+  const PehchaanApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Pehchaan',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.black)),
-      home: const Scaffold(),
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF6F5F3),
+        fontFamily: 'Roboto',
+      ),
+      home: const HomeScreen(),
     );
   }
 }
